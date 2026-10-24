@@ -1,10 +1,3 @@
-//! Cross-platform "pick a log file" dialog.
-//!
-//! Native uses `rfd` on a worker thread so the UI never blocks. The Web build
-//! drives a hidden `<input type="file">` directly, which also lets us detect the
-//! browser's `cancel` event (rfd's wasm dialog can leave a cancelled pick
-//! pending forever).
-
 use std::sync::mpsc::Sender;
 
 pub enum PickOutcome {
@@ -13,7 +6,6 @@ pub enum PickOutcome {
     Failed(String),
 }
 
-/// Opens the system file picker. The result is delivered through `tx`.
 pub fn pick_log_file(ctx: &egui::Context, tx: Sender<PickOutcome>) {
     imp::pick(ctx, tx);
 }
@@ -161,8 +153,6 @@ mod imp {
         input.set_oncancel(Some(on_cancel.as_ref().unchecked_ref()));
         on_cancel.forget();
 
-        // Must stay inside the click handler for browsers that require a
-        // transient user activation to open the picker.
         input.click();
     }
 }

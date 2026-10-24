@@ -4,6 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>rlogis</title>
+    <script>
+      window.addEventListener("error", (e) =>
+        console.error("WINERR", e.message, e.filename, e.lineno, e.colno),
+      );
+      window.addEventListener("unhandledrejection", (e) =>
+        console.error("REJECT", e.reason && (e.reason.stack || e.reason.message || e.reason)),
+      );
+    </script>
     <link data-trunk rel="rust" data-wasm-opt="z" />
     <style>
       html,

@@ -1,23 +1,15 @@
-//! Radio channel colours, keyed by the chat span name and by frequency.
-//!
-//! The colours mirror the in-game radio text colors, so a `[135.9]` badge looks
-//! like the channel it was transmitted on. A span name wins over the frequency
-//! because servers re-tune channels (`135.9` is Security by default but may be
-//! Command on a given round). Unknown channels and non-standard frequencies
-//! fall back to the green Common colour.
-
 use egui::Color32;
 
 pub struct Channel {
     pub name: &'static str,
-    /// Standard frequency, `""` when the channel has none.
+    /// Standard frequency, `""` when the channel has none
     pub frequency: &'static str,
-    /// Chat span classes that identify this channel.
+    /// Chat span classes that identify this channel
     pub spans: &'static [&'static str],
     pub color: Color32,
 }
 
-/// Colour used for unknown channels and non-standard frequencies.
+/// Colour used for unknown channels and non-standard frequencies
 pub const DEFAULT_COLOR: Color32 = Color32::from_rgb(0x20, 0xA0, 0x20);
 
 const GRAY: Color32 = Color32::from_rgb(0x70, 0x80, 0x90);
@@ -217,13 +209,9 @@ static CHANNELS: &[Channel] = &[
     },
 ];
 
-/// Resolves the channel for a frequency badge.
-///
-/// `spans` is the raw `(spans: …)` text, if the log line carried one.
 pub fn channel_for(spans: Option<&str>, frequency: &str) -> Option<&'static Channel> {
     if let Some(spans) = spans {
         for span in spans.split_whitespace() {
-            // Tokens may carry the surrounding `(spans:` and `)` punctuation.
             let span = span
                 .trim_matches(|character: char| !character.is_alphanumeric() && character != '_')
                 .to_ascii_lowercase();
@@ -236,7 +224,6 @@ pub fn channel_for(spans: Option<&str>, frequency: &str) -> Option<&'static Chan
     CHANNELS.iter().find(|c| c.frequency == frequency)
 }
 
-/// Colour of a frequency badge: the channel colour, or green when unknown.
 pub fn color_for(spans: Option<&str>, frequency: &str) -> Color32 {
     channel_for(spans, frequency).map_or(DEFAULT_COLOR, |channel| channel.color)
 }
@@ -247,7 +234,6 @@ mod tests {
 
     #[test]
     fn span_name_wins_over_frequency() {
-        // 135.9 is Security by default, but this round transmits it as Command.
         let command = color_for(Some("(spans:  command_headset )"), "135.9");
         assert_eq!(
             command,
@@ -273,7 +259,6 @@ mod tests {
 
     #[test]
     fn span_modifiers_are_skipped() {
-        // `yell`/`italics` are not channels; the real channel must still win.
         assert_eq!(
             color_for(Some("(spans:  command_headset yell )"), "145.9"),
             color_for(Some("(spans: command_headset)"), "145.9")

@@ -1,7 +1,3 @@
-//! Themes, the zebra-striped table palette and derived accent colors.
-//!
-//! Add a theme by extending [`ThemeKind`], its label and a static [`Theme`].
-
 use egui::{Color32, Stroke};
 
 use crate::log::Category;
@@ -18,7 +14,6 @@ pub struct Theme {
     pub panel: Color32,
     pub top_bar: Color32,
     pub header: Color32,
-    /// Color of every other table row (the other rows use `panel`).
     pub stripe: Color32,
     pub text: Color32,
     pub weak_text: Color32,
@@ -33,9 +28,6 @@ impl Theme {
         self.palette[category.index()]
     }
 
-    /// Soft, opaque tint for the whole row when "Accent" is enabled. Colors are
-    /// mixed with the panel background so adjacent cells can overlap without
-    /// double-blending.
     pub fn row_accent(&self, category: Category, continuation: bool) -> Color32 {
         let strength = if self.dark { 0.14 } else { 0.12 };
         let strength = if continuation {
@@ -46,10 +38,6 @@ impl Theme {
         mix(self.panel, self.category_color(category), strength)
     }
 
-    /// Stable background/text color for a ckey badge.
-    ///
-    /// Keys get an index in log order; the golden angle spreads their hues so
-    /// every key is visually distinct.
     pub fn key_colors(&self, index: usize) -> (Color32, Color32) {
         let hue = (index as f32 * 137.508) % 360.0;
         let (saturation, lightness) = if self.dark {
@@ -111,11 +99,7 @@ impl Theme {
         }
     }
 
-    /// Badge colors derived from an in-game chat color (radio channels).
-    ///
-    /// Chat colors are authored for a white background, so on light themes the
-    /// color becomes the text on a faint tint, and on dark themes it is lifted
-    /// toward the panel text so it stays readable.
+    /// Badge colors derived from an in-game chat color (radio channels)
     pub fn chat_badge_colors(&self, chat: Color32) -> (Color32, Color32) {
         if self.dark {
             (mix(self.panel, chat, 0.34), mix(self.text, chat, 0.55))
@@ -124,7 +108,7 @@ impl Theme {
         }
     }
 
-    /// Amber flash used to highlight the row a search jumped to.
+    /// Amber flash used to highlight the row a search jumped to
     pub fn highlight_color(&self) -> Color32 {
         if self.dark {
             Color32::from_rgb(250, 204, 21)
@@ -133,7 +117,7 @@ impl Theme {
         }
     }
 
-    /// Blend a row background toward the search-highlight color.
+    /// Blend a row background toward the search-highlight color
     pub fn row_highlight(&self, base: Color32, strength: f32) -> Color32 {
         mix(
             base,
@@ -142,7 +126,7 @@ impl Theme {
         )
     }
 
-    /// Applies the theme to egui. Safe to call on every theme change.
+    /// Applies the theme to egui. Safe to call on every theme change
     pub fn apply(&self, ctx: &egui::Context) {
         let target = if self.dark {
             egui::Theme::Dark
@@ -173,8 +157,6 @@ impl Theme {
         visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, self.text);
         visuals.widgets.hovered.bg_stroke = Stroke::NONE;
         visuals.widgets.hovered.bg_fill = mix(self.panel, self.accent, 0.16);
-        // `Visuals::strong_text_color` reads the active text color, so it must
-        // stay readable on the panel (the filename in the toolbar uses it).
         visuals.widgets.active.fg_stroke = Stroke::new(1.0, self.text);
         visuals.widgets.active.bg_stroke = Stroke::NONE;
         visuals.widgets.active.bg_fill = mix(self.panel, self.accent, 0.26);
