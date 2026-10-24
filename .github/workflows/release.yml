@@ -1,0 +1,211 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY: rlogis
+
+jobs:
+  check:
+    name: Tag is on master
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify the tagged commit belongs to master
+        run: |
+          git fetch --no-tags origin master:refs/remotes/origin/master
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-${{ matrix.arch }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libgles2-mesa-dev
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package
+        run: |
+          mkdir -p package
+          cp "target/release/${BINARY}" package/
+          if [ -f README.md ]; then cp README.md package/; fi
+          strip "package/${BINARY}" || true
+          tar -C package -czf "${BINARY}-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.tar.gz" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: ${{ env.BINARY }}-${{ github.ref_name }}-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+          - runner: windows-11-arm
+            arch: aarch64
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-${{ matrix.arch }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package portable exe
+        shell: pwsh
+        run: |
+          Copy-Item "target/${{ matrix.target }}/release/${env:BINARY}.exe" `
+                    "${env:BINARY}-${{ github.ref_name }}-windows-${{ matrix.arch }}.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: ${{ env.BINARY }}-${{ github.ref_name }}-windows-${{ matrix.arch }}.exe
+          if-no-files-found: error
+
+  wasm:
+    name: WebAssembly
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+      - name: Install wasm-opt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binaryen
+
+      - name: Build
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          trunk build --release --public-url "/${REPO_NAME}/"
+
+      - name: Prepare Pages artifact
+        run: |
+          touch dist/.nojekyll
+          ls -lh dist
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  release:
+    name: GitHub Release
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Build changelog from commits
+        run: |
+          PREVIOUS=$(git tag --sort=-creatordate | grep -vx "${GITHUB_REF_NAME}" | head -n1 || true)
+          if [ -n "$PREVIOUS" ]; then
+            RANGE="${PREVIOUS}..${GITHUB_SHA}"
+            echo "### Commits since ${PREVIOUS}" > CHANGELOG.md
+          else
+            RANGE="${GITHUB_SHA}"
+            echo "### Commits" > CHANGELOG.md
+          fi
+          echo "" >> CHANGELOG.md
+          git log "$RANGE" --no-merges --pretty=format:'- %s (`%h`) — %an' >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Artifacts" >> CHANGELOG.md
+          echo "- Linux x86_64 / aarch64: \`tar.gz\`" >> CHANGELOG.md
+          echo "- Windows x86_64 / aarch64: portable \`.exe\`" >> CHANGELOG.md
+          echo "- Web build: GitHub Pages" >> CHANGELOG.md
+          cat CHANGELOG.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          files: artifacts/*
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+
+  deploy-pages:
+    name: Deploy GitHub Pages
+    needs: wasm
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
