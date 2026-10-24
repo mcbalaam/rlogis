@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -147,10 +145,11 @@ jobs:
           touch dist/.nojekyll
           ls -lh dist
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: wasm-dist
           path: dist
+          if-no-files-found: error
 
   release:
     name: GitHub Release
@@ -195,17 +194,3 @@ jobs:
           files: artifacts/*
           fail_on_unmatched_files: true
           generate_release_notes: false
-
-  deploy-pages:
-    name: Deploy GitHub Pages
-    needs: wasm
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
