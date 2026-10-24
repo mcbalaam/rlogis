@@ -53,9 +53,9 @@ impl Theme {
     pub fn key_colors(&self, index: usize) -> (Color32, Color32) {
         let hue = (index as f32 * 137.508) % 360.0;
         let (saturation, lightness) = if self.dark {
-            (0.52, 0.34)
+            (0.42, 0.25)
         } else {
-            (0.62, 0.80)
+            (0.48, 0.86)
         };
         let background = hsl_to_rgb(hue, saturation, lightness);
         let text = if self.dark {
@@ -70,13 +70,13 @@ impl Theme {
     pub fn system_badge_colors(&self) -> (Color32, Color32) {
         if self.dark {
             (
-                Color32::from_rgb(75, 82, 96),
-                Color32::from_rgb(229, 231, 235),
+                Color32::from_rgb(42, 46, 54),
+                Color32::from_rgb(208, 213, 222),
             )
         } else {
             (
-                Color32::from_rgb(226, 230, 236),
-                Color32::from_rgb(75, 85, 99),
+                Color32::from_rgb(238, 240, 244),
+                Color32::from_rgb(85, 92, 105),
             )
         }
     }
@@ -85,13 +85,13 @@ impl Theme {
     pub fn mob_badge_colors(&self) -> (Color32, Color32) {
         if self.dark {
             (
-                Color32::from_rgb(55, 65, 81),
-                Color32::from_rgb(226, 232, 240),
+                Color32::from_rgb(36, 41, 50),
+                Color32::from_rgb(203, 210, 222),
             )
         } else {
             (
-                Color32::from_rgb(226, 232, 240),
-                Color32::from_rgb(51, 65, 85),
+                Color32::from_rgb(238, 241, 245),
+                Color32::from_rgb(60, 70, 85),
             )
         }
     }
@@ -100,15 +100,46 @@ impl Theme {
     pub fn location_badge_colors(&self) -> (Color32, Color32) {
         if self.dark {
             (
-                Color32::from_rgb(30, 58, 95),
-                Color32::from_rgb(207, 231, 255),
+                Color32::from_rgb(26, 42, 61),
+                Color32::from_rgb(198, 220, 244),
             )
         } else {
             (
-                Color32::from_rgb(214, 233, 255),
-                Color32::from_rgb(20, 60, 95),
+                Color32::from_rgb(233, 242, 252),
+                Color32::from_rgb(35, 65, 95),
             )
         }
+    }
+
+    /// Badge colors derived from an in-game chat color (radio channels).
+    ///
+    /// Chat colors are authored for a white background, so on light themes the
+    /// color becomes the text on a faint tint, and on dark themes it is lifted
+    /// toward the panel text so it stays readable.
+    pub fn chat_badge_colors(&self, chat: Color32) -> (Color32, Color32) {
+        if self.dark {
+            (mix(self.panel, chat, 0.34), mix(self.text, chat, 0.55))
+        } else {
+            (mix(self.panel, chat, 0.18), mix(chat, Color32::BLACK, 0.12))
+        }
+    }
+
+    /// Amber flash used to highlight the row a search jumped to.
+    pub fn highlight_color(&self) -> Color32 {
+        if self.dark {
+            Color32::from_rgb(250, 204, 21)
+        } else {
+            Color32::from_rgb(245, 158, 11)
+        }
+    }
+
+    /// Blend a row background toward the search-highlight color.
+    pub fn row_highlight(&self, base: Color32, strength: f32) -> Color32 {
+        mix(
+            base,
+            self.highlight_color(),
+            0.45 * strength.clamp(0.0, 1.0),
+        )
     }
 
     /// Applies the theme to egui. Safe to call on every theme change.

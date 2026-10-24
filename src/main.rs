@@ -1,6 +1,7 @@
 mod app;
 mod log;
 mod platform;
+mod radio;
 mod theme;
 
 use app::RlogisApp;

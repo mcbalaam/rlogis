@@ -8,7 +8,7 @@
 use std::sync::mpsc::Sender;
 
 pub enum PickOutcome {
-    Loaded { name: String, bytes: Vec<u8> },
+    Loaded { bytes: Vec<u8> },
     Cancelled,
     Failed(String),
 }
@@ -32,16 +32,10 @@ mod imp {
                 .pick_file();
 
             let outcome = match selected {
-                Some(path) => {
-                    let name = path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| path.display().to_string());
-                    match std::fs::read(&path) {
-                        Ok(bytes) => PickOutcome::Loaded { name, bytes },
-                        Err(error) => PickOutcome::Failed(format!("{}: {error}", path.display())),
-                    }
-                }
+                Some(path) => match std::fs::read(&path) {
+                    Ok(bytes) => PickOutcome::Loaded { bytes },
+                    Err(error) => PickOutcome::Failed(format!("{}: {error}", path.display())),
+                },
                 None => PickOutcome::Cancelled,
             };
 
@@ -103,7 +97,6 @@ mod imp {
                 return;
             };
 
-            let name = file.name();
             let reader = match FileReader::new() {
                 Ok(reader) => reader,
                 Err(_) => {
@@ -123,7 +116,6 @@ mod imp {
                 let outcome = match reader_for_load.result() {
                     Ok(value) => match value.as_string() {
                         Some(text) => PickOutcome::Loaded {
-                            name: name.clone(),
                             bytes: text.into_bytes(),
                         },
                         None => PickOutcome::Failed("the file is not valid UTF-8 text".to_owned()),
